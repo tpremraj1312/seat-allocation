@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CMRCET | Orientation Day Seat Allocation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --cmr-blue: #003b5d; --cmr-orange: #f6821f; --light-grey: #f0f2f5; --success-green: #198754; --success-light: #d1e7dd; --danger-red: #dc3545; --danger-light: #f8d7da; }
+        body { font-family: 'Titillium Web', sans-serif; background-color: var(--light-grey); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+        .container { background: white; padding: 30px 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 600px; box-sizing: border-box; }
+        .logo { max-width: 300px; margin-bottom: 20px; }
+        h1 { color: var(--cmr-blue); margin-bottom: 25px; }
+        form { display: flex; flex-direction: column; gap: 15px; margin: 20px 0; }
+        label { font-weight: 600; font-size: 1.1rem; }
+        input[type="number"] { padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 1.8rem; text-align: center; }
+        button { padding: 14px 20px; border: none; border-radius: 8px; background-color: var(--cmr-blue); color: white; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: background-color 0.2s; }
+        button:hover { background-color: #002c46; }
+        button:disabled { background-color: #a0a0a0; cursor: not-allowed; }
+        .hidden { display: none; }
+        #results-container, #success-container { margin-top: 30px; padding: 25px; border-radius: 8px; background-color: #fafafa; text-align: left; border: 1px solid #ddd; }
+        #checkin-button { background-color: var(--success-green); }
+        #checkin-button:hover { background-color: #157347; }
+        .seat-display { font-size: 2.5rem; font-weight: bold; color: var(--success-green); text-align: center; margin: 15px 0; padding: 10px; background-color: var(--success-light); border: 1px solid var(--success-green); border-radius: 8px; }
+        #message-container { margin-top: 25px; padding: 15px; font-weight: 500; border-radius: 8px; color: #842029; background-color: var(--danger-light); border: 1px solid var(--danger-red); }
+        .dashboard { max-width: 1200px; padding: 20px; }
+        .dashboard h2 { color: var(--cmr-blue); }
+        #toggle-dashboard { background-color: var(--cmr-orange); }
+        #toggle-dashboard:hover { background-color: #e07015; }
+        #auditorium-view { display: none; margin-top: 20px; border: 1px solid #ddd; padding: 20px; border-radius: 8px; }
+        .auditorium-section { margin-bottom: 30px; }
+        .auditorium-section h3 { background-color: var(--cmr-blue); color: white; padding: 10px; border-radius: 8px; margin-bottom: 15px; }
+        .seat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap: 5px; }
+        .seat { width: 50px; height: 30px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #555; cursor: default; transition: background-color 0.3s; }
+        .available { background-color: #e9ecef; border: 1px solid #ced4da; }
+        .allocated { background-color: var(--success-green); border: 1px solid #146c43; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="https://dhondi.ai/logos/cmr.png" alt="CMRCET Logo" class="logo">
+        <h1>Orientation Day Seat Allocation</h1>
+        <form id="checkin-form">
+            <label for="registration-code-input">Enter 4-Digit Registration Code:</label>
+            <input type="number" id="registration-code-input" name="code" placeholder="e.g., 1234" required>
+            <button type="submit">Find Registration</button>
+        </form>
+        <div id="message-container" class="hidden"></div>
+        <div id="results-container" class="hidden">
+            <h2>Registration Found</h2>
+            <p><strong>Name:</strong> <span id="student-name"></span></p>
+            <p><strong>Department:</strong> <span id="student-department"></span></p>
+            <button id="checkin-button">Allocate Seats & Check-In</button>
+        </div>
+        <div id="success-container" class="hidden">
+            <h2>Check-in Successful!</h2>
+            <p style="text-align: center;">Assigned Seats:</p>
+            <div class="seat-display" id="assigned-seat-1"></div>
+            <div class="seat-display" id="assigned-seat-2"></div>
+        </div>
+    </div>
+
+    <div class="container dashboard">
+        <button id="toggle-dashboard">Show/Hide Live Auditorium View</button>
+        <div id="auditorium-view">
+            <h2>Live Seat Status (<span id="allocated-count">0</span> / 1441 Total)</h2>
+            <div class="auditorium-section"><h3>A-ROW</h3><div class="seat-grid" id="section-A-grid"></div></div>
+            <div class="auditorium-section"><h3>B-ROW</h3><div class="seat-grid" id="section-B-grid"></div></div>
+            <div class="auditorium-section"><h3>C-ROW</h3><div class="seat-grid" id="section-C-grid"></div></div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const checkinForm = document.getElementById('checkin-form');
+            const codeInput = document.getElementById('registration-code-input');
+            const resultsContainer = document.getElementById('results-container');
+            const successContainer = document.getElementById('success-container');
+            const messageContainer = document.getElementById('message-container');
+            const checkinButton = document.getElementById('checkin-button');
+            const toggleButton = document.getElementById('toggle-dashboard');
+            const auditoriumView = document.getElementById('auditorium-view');
+            const allocatedCountSpan = document.getElementById('allocated-count');
+            
+            const API_BASE_URL = window.location.origin;
+            const SEAT_DATA = { A: { total: 422, start: 1 }, B: { total: 748, start: 1 }, C: { total: 399, start: 1 } };
+
+            function showMessage(text) { messageContainer.textContent = text; messageContainer.classList.remove('hidden'); }
+            function hideMessage() { messageContainer.classList.add('hidden'); }
+
+            checkinForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                resultsContainer.classList.add('hidden');
+                successContainer.classList.add('hidden');
+                hideMessage();
+                try {
+                    const formData = new FormData(checkinForm);
+                    const response = await fetch(`${API_BASE_URL}/find-registration`, {
+                        method: 'POST',
+                        body: new URLSearchParams(formData)
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message);
+                    document.getElementById('student-name').textContent = result.data.sname;
+                    document.getElementById('student-department').textContent = result.data.department;
+                    checkinButton.dataset.docId = result.doc_id;
+                    resultsContainer.classList.remove('hidden');
+                } catch (error) { showMessage(`Error: ${error.message}`); }
+            });
+
+            checkinButton.addEventListener('click', async () => {
+                const docId = checkinButton.dataset.docId;
+                if (!docId) return;
+                try {
+                    const response = await fetch(`${API_BASE_URL}/check-in`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ doc_id: docId })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message);
+                    document.getElementById('assigned-seat-1').textContent = result.seat1;
+                    document.getElementById('assigned-seat-2').textContent = result.seat2;
+                    resultsContainer.classList.add('hidden');
+                    successContainer.classList.remove('hidden');
+                    checkinForm.reset();
+                    codeInput.focus();
+                    if (auditoriumView.style.display === 'block') fetchSeatStatus();
+                } catch (error) { showMessage(`Error: ${error.message}`); }
+            });
+
+            async function fetchSeatStatus() {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/get-seat-status`);
+                    const data = await response.json();
+                    document.querySelectorAll('.seat').forEach(s => s.classList.replace('allocated', 'available'));
+                    data.allocated_seats.forEach(id => {
+                        const el = document.getElementById(`seat-${id}`);
+                        if (el) el.classList.replace('available', 'allocated');
+                    });
+                    allocatedCountSpan.textContent = data.allocated_count;
+                } catch (error) { console.error("Could not fetch seat status:", error); }
+            }
+
+            function generateSeats() {
+                for (const section in SEAT_DATA) {
+                    const grid = document.getElementById(`section-${section}-grid`);
+                    const data = SEAT_DATA[section];
+                    for (let i = data.start; i <= data.total; i++) {
+                        const seat = document.createElement('div');
+                        seat.className = 'seat available';
+                        seat.id = `seat-${section}-${i}`;
+                        seat.title = `${section}-${i}`;
+                        seat.innerText = i;
+                        grid.appendChild(seat);
+                    }
+                }
+            }
+
+            toggleButton.addEventListener('click', () => {
+                const isHidden = auditoriumView.style.display === 'none';
+                auditoriumView.style.display = isHidden ? 'block' : 'none';
+                if (isHidden) fetchSeatStatus();
+            });
+            
+            generateSeats();
+            setInterval(fetchSeatStatus, 15000); // Auto-refresh dashboard
+        });
+    </script>
+</body>
+</html>
